@@ -249,13 +249,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $usage_percentage = ($remaining_minutes / $total_contingent) * 100;
                         
                         // Farbbestimmung für Fortschrittsbalken
-                        $color_class = 'bg-red-500';
-                        if ($usage_percentage > 75) {
-                            $color_class = 'bg-green-500';
-                        } elseif ($usage_percentage > 50) {
-                            $color_class = 'bg-yellow-500';
-                        } elseif ($usage_percentage > 25) {
-                            $color_class = 'bg-orange-500';
+                        $color_class = 'bg-red-500';     // Default für überzogenes Kontingent (< 0%)
+                        if ($usage_percentage > 25) {
+                            $color_class = 'bg-green-500';  // Über 25% übrig
+                        } elseif ($usage_percentage > 0) {
+                            $color_class = 'bg-yellow-500'; // Zwischen 0% und 25% übrig
+                        } elseif ($usage_percentage == 0) {
+                            $color_class = 'bg-orange-500'; // Genau 0% übrig
                         }
                     ?>
                     <tr class="hover:bg-gray-50 cursor-pointer" onclick='showCustomerModal(<?php echo json_encode([
