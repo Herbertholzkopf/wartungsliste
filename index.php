@@ -42,22 +42,47 @@ function calculateUsedContingent($pdo, $customer_id, $month, $year) {
     return $stmt->fetch(PDO::FETCH_ASSOC)['total_minutes'];
 }
 
-// POST Verarbeitung
+// Validierungsfunktion für Datumsformat
+function validateDateTime($date, $time) {
+    $dateTime = DateTime::createFromFormat('Y-m-d H:i', "$date $time");
+    return $dateTime && $dateTime->format('Y-m-d H:i') === "$date $time";
+}
+
+// Verbesserte Fehlerbehandlung und Validierung für POST-Anfragen
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
+    if (!isset($_POST['action'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Keine Aktion angegeben']);
+        exit;
+    }
+
+    try {
         switch ($_POST['action']) {
             case 'add_work':
-                try {
-                    // Erstelle Datetime aus Datum und Startzeit
-                    $start_datetime = date('Y-m-d H:i:s', strtotime($_POST['work_date'] . ' ' . $_POST['start_time']));
-                    // Erstelle Datetime aus Datum und Endzeit
-                    $end_datetime = date('Y-m-d H:i:s', strtotime($_POST['work_date'] . ' ' . $_POST['end_time']));
-                    
-                    // Berechne die Dauer in Minuten
-                    $duration = (strtotime($end_datetime) - strtotime($start_datetime)) / 60;
-                    $duration_hours = floor($duration / 60);
-                    $duration_minutes = $duration % 60;
-            
+            case 'edit_work':
+                // Validierung der Eingaben
+                if (!isset($_POST['work_date']) || !isset($_POST['start_time']) || !isset($_POST['end_time'])) {
+                    throw new Exception('Alle Zeitfelder müssen ausgefüllt sein');
+                }
+
+                if (!validateDateTime($_POST['work_date'], $_POST['start_time']) || 
+                    !validateDateTime($_POST['work_date'], $_POST['end_time'])) {
+                    throw new Exception('Ungültiges Datum oder Zeitformat');
+                }
+
+                $start_datetime = new DateTime($_POST['work_date'] . ' ' . $_POST['start_time']);
+                $end_datetime = new DateTime($_POST['work_date'] . ' ' . $_POST['end_time']);
+
+                if ($end_datetime <= $start_datetime) {
+                    throw new Exception('Die Endzeit muss nach der Startzeit liegen');
+                }
+
+                // Berechne die Dauer
+                $interval = $start_datetime->diff($end_datetime);
+                $duration_hours = $interval->h + ($interval->days * 24);
+                $duration_minutes = $interval->i;
+
+                if ($_POST['action'] === 'add_work') {
                     $stmt = $pdo->prepare("
                         INSERT INTO work_entries (
                             customer_id, 
@@ -75,44 +100,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_POST['employee_id'],
                         $_POST['title'],
                         $_POST['description'],
-                        $start_datetime,
-                        $end_datetime,
+                        $start_datetime->format('Y-m-d H:i:s'),
+                        $end_datetime->format('Y-m-d H:i:s'),
                         $duration_hours,
                         $duration_minutes
                     ]);
-            
-                    // Sende eine Erfolgsantwort zurück
-                    http_response_code(200);
-                    echo json_encode(['success' => true]);
-                    exit;
-                } catch (Exception $e) {
-                    http_response_code(500);
-                    echo json_encode(['error' => $e->getMessage()]);
-                    exit;
-                }
-                break;
-
-            case 'stop_work':
-                $stmt = $pdo->prepare("
-                    UPDATE work_entries 
-                    SET end_datetime = NOW() 
-                    WHERE id = ?
-                ");
-                $stmt->execute([$_POST['entry_id']]);
-                break;
-
-            case 'edit_work':
-                try {
-                    // Erstelle Datetime aus Datum und Startzeit
-                    $start_datetime = date('Y-m-d H:i:s', strtotime($_POST['work_date'] . ' ' . $_POST['start_time']));
-                    // Erstelle Datetime aus Datum und Endzeit
-                    $end_datetime = date('Y-m-d H:i:s', strtotime($_POST['work_date'] . ' ' . $_POST['end_time']));
-                    
-                    // Berechne die Dauer in Minuten
-                    $duration = (strtotime($end_datetime) - strtotime($start_datetime)) / 60;
-                    $duration_hours = floor($duration / 60);
-                    $duration_minutes = $duration % 60;
-
+                } else if ($_POST['action'] === 'edit_work') {
                     $stmt = $pdo->prepare("
                         UPDATE work_entries 
                         SET title = ?, 
@@ -128,22 +121,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_POST['title'],
                         $_POST['description'],
                         $_POST['employee_id'],
-                        $start_datetime,
-                        $end_datetime,
+                        $start_datetime->format('Y-m-d H:i:s'),
+                        $end_datetime->format('Y-m-d H:i:s'),
                         $duration_hours,
                         $duration_minutes,
                         $_POST['entry_id']
                     ]);
-
-                    // Sende eine Erfolgsantwort zurück
-                    http_response_code(200);
-                    echo json_encode(['success' => true]);
-                    exit;
-                } catch (Exception $e) {
-                    http_response_code(500);
-                    echo json_encode(['error' => $e->getMessage()]);
-                    exit;
                 }
+
+                // Sende eine Erfolgsantwort zurück
+                http_response_code(200);
+                echo json_encode(['success' => true]);
+                exit;
+
+            case 'stop_work':
+                $stmt = $pdo->prepare("
+                    UPDATE work_entries 
+                    SET end_datetime = NOW() 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$_POST['entry_id']]);
                 break;
 
             case 'delete_work':
@@ -161,7 +158,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
         }
-        
+    } catch (Exception $e) {
+        http_response_code(400);
+        echo json_encode(['error' => $e->getMessage()]);
+        exit;
     }
 }
 
