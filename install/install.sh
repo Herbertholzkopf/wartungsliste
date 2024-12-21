@@ -62,7 +62,7 @@ echo -e "${GREEN}MySQL Root-Passwort erfolgreich gesetzt.${NC}"
 
 # Einrichtung der MySQL Datenbank
 echo -e "${YELLOW}Erstelle Datenbank "wartungsliste" und Benutzer "wartungsliste_user"...${NC}"
-read -s -p "Plex Requests Datenbank-Benutzer Passwort: " dbpass
+read -s -p "Wartungsliste Datenbank-Benutzer Passwort: " dbpass
 echo ""
 
 if ! mysql --user=root --password="${mysqlpass}" <<EOF
@@ -83,7 +83,7 @@ mkdir -p /var/www/wartungsliste
 
 # Projekt von GitHub klonen
 echo -e "${YELLOW}Klone Git Repository...${NC}"
-if git clone xxxxxxxxxxxxxxxxxxxxxxx /var/www/wartungsliste; then
+if git clone https://github.com/PHD-IT-Systeme/wartungsliste.git /var/www/wartungsliste; then
     echo -e "${GREEN}Repository erfolgreich geklont${NC}"
 else
     echo -e "${RED}Fehler beim Klonen des Repositories${NC}"
