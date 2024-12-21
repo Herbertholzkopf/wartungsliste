@@ -145,4 +145,4 @@ echo -e "${YELLOW}Dienste werden neu gestartet...${NC}"
 systemctl restart nginx
 
 echo -e "${GREEN}Installation abgeschlossen!${NC}"
-echo -e "${RED}Korrigiere das gerade eingegebene Passwort des Datenbank-Benutzers mit dem Befehl: nano /var/www/plex-requests/config.php${NC}"
+echo -e "${RED}Korrigiere das gerade eingegebene Passwort des Datenbank-Benutzers mit dem Befehl: nano /var/www/wartungsliste/config.php${NC}"
