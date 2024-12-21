@@ -199,16 +199,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <form method="GET" class="flex gap-2">
                     <select name="month" class="px-4 py-2 border rounded-lg">
                         <?php
+                        $monate = array(
+                            1 => 'Januar',
+                            2 => 'Februar',
+                            3 => 'März',
+                            4 => 'April',
+                            5 => 'Mai',
+                            6 => 'Juni',
+                            7 => 'Juli',
+                            8 => 'August',
+                            9 => 'September',
+                            10 => 'Oktober',
+                            11 => 'November',
+                            12 => 'Dezember'
+                        );
+                        
                         for ($i = 1; $i <= 12; $i++) {
                             $selected = $i == $current_month ? 'selected' : '';
-                            echo "<option value='$i' $selected>" . date('F', mktime(0, 0, 0, $i, 1)) . "</option>";
+                            echo "<option value='$i' $selected>" . $monate[$i] . "</option>";
                         }
                         ?>
                     </select>
                     <select name="year" class="px-4 py-2 border rounded-lg">
                         <?php
                         $current_year_num = date('Y');
-                        // Zeige 2 Jahre zurück und 5 Jahre in die Zukunft an
+                        // Zeige 2 Jahre zurück und 1 Jahr in die Zukunft an
                         for ($i = $current_year_num - 2; $i <= $current_year_num + 1; $i++) {
                             $selected = $i == $current_year ? 'selected' : '';
                             echo "<option value='$i' $selected>$i</option>";
