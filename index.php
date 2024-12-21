@@ -186,6 +186,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .modal.active {
             display: flex;
         }
+        .container {
+            margin-bottom: 4rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -637,5 +640,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
     </script>
+
+    <footer class="fixed bottom-0 w-full text-center py-4 text-gray-600 bg-white border-t border-gray-200 z-10">
+        Made with ❤️ by Andreas Koller
+    </footer>
+
 </body>
 </html>
