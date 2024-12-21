@@ -55,14 +55,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
 
             case 'delete_customer':
-                // Erst prüfen ob Arbeitseinträge existieren
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM work_entries WHERE customer_id = ?");
-                $stmt->execute([$_POST['customer_id']]);
-                if ($stmt->fetchColumn() > 0) {
-                    $_SESSION['error'] = "Kunde kann nicht gelöscht werden, da bereits Arbeitseinträge existieren.";
-                } else {
+                try {
+                    // Transaktion starten
+                    $pdo->beginTransaction();
+                    
+                    // Erst alle zugehörigen Arbeitseinträge löschen
+                    $stmt = $pdo->prepare("DELETE FROM work_entries WHERE customer_id = ?");
+                    $stmt->execute([$_POST['customer_id']]);
+                    
+                    // Dann den Kunden selbst löschen
                     $stmt = $pdo->prepare("DELETE FROM customers WHERE id = ?");
                     $stmt->execute([$_POST['customer_id']]);
+                    
+                    // Transaktion abschließen
+                    $pdo->commit();
+                } catch(Exception $e) {
+                    // Bei einem Fehler Transaktion rückgängig machen
+                    $pdo->rollBack();
+                    $_SESSION['error'] = "Fehler beim Löschen des Kunden: " . $e->getMessage();
                 }
                 break;
 
@@ -102,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Einstellungen - Wartungsverträge</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
@@ -123,210 +132,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <!-- Kunden Verwaltung -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Kunden</h2>
-            
-            <!-- Neuer Kunde Form -->
-            <div x-data="{ showForm: false }" class="mb-6">
-                <button @click="showForm = !showForm"
-                        class="bg-blue-500 text-white px-4 py-2 rounded-lg mb-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Kunden</h2>
+                <button onclick="showCustomerModal()" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
                     Neuen Kunden anlegen
                 </button>
-
-                <form x-show="showForm" method="POST" class="space-y-4 bg-gray-50 p-4 rounded-lg">
-                    <input type="hidden" name="action" value="add_customer">
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Name</label>
-                            <input type="text" name="name" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Kundennummer</label>
-                            <input type="text" name="customer_number" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Kontingent Stunden</label>
-                            <input type="number" name="contingent_hours" required min="0"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Kontingent Minuten</label>
-                            <input type="number" name="contingent_minutes" required min="0" max="59"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Notizen</label>
-                        <textarea name="notes" rows="3"
-                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
-                    </div>
-
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" @click="showForm = false"
-                                class="bg-gray-500 text-white px-4 py-2 rounded-lg">
-                            Abbrechen
-                        </button>
-                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
-                            Speichern
-                        </button>
-                    </div>
-                </form>
             </div>
-
-            <!-- Kundenliste -->
-            <div class="space-y-4">
-                <?php
-                $customers = $pdo->query("SELECT * FROM customers ORDER BY name")->fetchAll();
-                foreach ($customers as $customer) {
-                ?>
-                    <div class="border rounded-lg p-4" x-data="{ editing: false }">
-                        <div x-show="!editing" class="flex justify-between items-start">
-                            <div>
-                                <h3 class="font-bold"><?= htmlspecialchars($customer['name']) ?></h3>
-                                <p class="text-sm text-gray-600">
-                                    Kundennummer: <?= htmlspecialchars($customer['customer_number']) ?>
-                                </p>
-                                <p class="text-sm text-gray-600">
-                                    Kontingent: <?= $customer['contingent_hours'] ?>h <?= $customer['contingent_minutes'] ?>min
-                                </p>
-                                <?php if ($customer['notes']): ?>
-                                    <p class="mt-2 text-sm"><?= nl2br(htmlspecialchars($customer['notes'])) ?></p>
-                                <?php endif; ?>
-                            </div>
-                            <div class="space-x-2">
-                                <button @click="editing = true"
-                                        class="bg-blue-500 text-white px-3 py-1 rounded">
+            
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php
+                        $customers = $pdo->query("SELECT * FROM customers ORDER BY name")->fetchAll();
+                        foreach ($customers as $customer) {
+                        ?>
+                        <tr>
+                            <td class="px-6 py-4"><?= htmlspecialchars($customer['name']) ?></td>
+                            <td class="px-6 py-4"><?= htmlspecialchars($customer['customer_number']) ?></td>
+                            <td class="px-6 py-4"><?= $customer['contingent_hours'] ?>h <?= $customer['contingent_minutes'] ?>min</td>
+                            <td class="px-6 py-4" title="<?= htmlspecialchars($customer['notes']) ?>">
+                <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
+            </td>
+                            <td class="px-6 py-4">
+                                <button onclick='showEditCustomerModal(<?= json_encode($customer) ?>)' 
+                                        class="bg-blue-500 text-white px-3 py-1 rounded mr-2">
                                     Bearbeiten
                                 </button>
-                                <form method="POST" class="inline" onsubmit="return confirm('Wirklich löschen?')">
+                                <form method="POST" class="inline" onsubmit="return confirm('Wirklich löschen? Dies wird auch alle Arbeitseinträge dieses Kunden löschen!')">
                                     <input type="hidden" name="action" value="delete_customer">
                                     <input type="hidden" name="customer_id" value="<?= $customer['id'] ?>">
                                     <button type="submit" class="bg-red-500 text-white px-3 py-1 rounded">
                                         Löschen
                                     </button>
                                 </form>
-                            </div>
-                        </div>
-
-                        <!-- Bearbeitungsformular -->
-                        <form x-show="editing" method="POST" class="space-y-4 mt-4">
-                            <input type="hidden" name="action" value="edit_customer">
-                            <input type="hidden" name="customer_id" value="<?= $customer['id'] ?>">
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Name</label>
-                                    <input type="text" name="name" required
-                                           value="<?= htmlspecialchars($customer['name']) ?>"
-                                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Kundennummer</label>
-                                    <input type="text" name="customer_number" required
-                                           value="<?= htmlspecialchars($customer['customer_number']) ?>"
-                                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Kontingent Stunden</label>
-                                    <input type="number" name="contingent_hours" required min="0"
-                                           value="<?= $customer['contingent_hours'] ?>"
-                                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Kontingent Minuten</label>
-                                    <input type="number" name="contingent_minutes" required min="0" max="59"
-                                           value="<?= $customer['contingent_minutes'] ?>"
-                                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Notizen</label>
-                                <textarea name="notes" rows="3"
-                                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><?= htmlspecialchars($customer['notes']) ?></textarea>
-                            </div>
-
-                            <div class="flex justify-end space-x-2">
-                                <button type="button" @click="editing = false"
-                                        class="bg-gray-500 text-white px-4 py-2 rounded-lg">
-                                    Abbrechen
-                                </button>
-                                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
-                                    Speichern
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                <?php
-                }
-                ?>
+                            </td>
+                        </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <!-- Mitarbeiter Verwaltung -->
         <div class="bg-white rounded-lg shadow-md p-6">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Mitarbeiter</h2>
-            
-            <!-- Neuer Mitarbeiter Form -->
-            <div x-data="{ showForm: false }" class="mb-6">
-                <button @click="showForm = !showForm"
-                        class="bg-blue-500 text-white px-4 py-2 rounded-lg mb-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Mitarbeiter</h2>
+                <button onclick="showEmployeeModal()" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
                     Neuen Mitarbeiter anlegen
                 </button>
-
-                <form x-show="showForm" method="POST" class="space-y-4 bg-gray-50 p-4 rounded-lg">
-                    <input type="hidden" name="action" value="add_employee">
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Name</label>
-                        <input type="text" name="name" required
-                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Notizen</label>
-                        <textarea name="notes" rows="3"
-                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
-                    </div>
-
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" @click="showForm = false"
-                                class="bg-gray-500 text-white px-4 py-2 rounded-lg">
-                            Abbrechen
-                        </button>
-                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
-                            Speichern
-                        </button>
-                    </div>
-                </form>
             </div>
-
-            <!-- Mitarbeiterliste -->
-            <div class="space-y-4">
-                <?php
-                $employees = $pdo->query("SELECT * FROM employees ORDER BY name")->fetchAll();
-                foreach ($employees as $employee) {
-                ?>
-                    <div class="border rounded-lg p-4" x-data="{ editing: false }">
-                        <div x-show="!editing" class="flex justify-between items-start">
-                            <div>
-                                <h3 class="font-bold"><?= htmlspecialchars($employee['name']) ?></h3>
-                                <?php if ($employee['notes']): ?>
-                                    <p class="mt-2 text-sm"><?= nl2br(htmlspecialchars($employee['notes'])) ?></p>
-                                <?php endif; ?>
-                            </div>
-                            <div class="space-x-2">
-                                <button @click="editing = true"
-                                        class="bg-blue-500 text-white px-3 py-1 rounded">
+            
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <?php
+                        $employees = $pdo->query("SELECT * FROM employees ORDER BY name")->fetchAll();
+                        foreach ($employees as $employee) {
+                        ?>
+                        <tr>
+                            <td class="px-6 py-4"><?= htmlspecialchars($employee['name']) ?></td>
+                            <td class="px-6 py-4" title="<?= htmlspecialchars($employee['notes']) ?>">
+                <?= nl2br(htmlspecialchars(strlen($employee['notes']) > 50 ? substr($employee['notes'], 0, 50) . '...' : $employee['notes'])) ?>
+            </td>
+                            <td class="px-6 py-4">
+                                <button onclick='showEditEmployeeModal(<?= json_encode($employee) ?>)' 
+                                        class="bg-blue-500 text-white px-3 py-1 rounded mr-2">
                                     Bearbeiten
                                 </button>
                                 <form method="POST" class="inline" onsubmit="return confirm('Wirklich löschen?')">
@@ -336,49 +222,233 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         Löschen
                                     </button>
                                 </form>
-                            </div>
-                        </div>
-
-                        <!-- Bearbeitungsformular -->
-                        <form x-show="editing" method="POST" class="space-y-4 mt-4">
-                            <input type="hidden" name="action" value="edit_employee">
-                            <input type="hidden" name="employee_id" value="<?= $employee['id'] ?>">
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Name</label>
-                                <input type="text" name="name" required
-                                       value="<?= htmlspecialchars($employee['name']) ?>"
-                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Notizen</label>
-                                <textarea name="notes" rows="3"
-                                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"><?= htmlspecialchars($employee['notes']) ?></textarea>
-                            </div>
-
-                            <div class="flex justify-end space-x-2">
-                                <button type="button" @click="editing = false"
-                                        class="bg-gray-500 text-white px-4 py-2 rounded-lg">
-                                    Abbrechen
-                                </button>
-                                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
-                                    Speichern
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                <?php
-                }
-                ?>
+                            </td>
+                        </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
+    <!-- Customer Modal -->
+    <div id="customerModal" class="modal">
+        <div class="modal-content bg-white w-full max-w-2xl mx-auto mt-20 rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-start mb-6">
+                <h2 id="customerModalTitle" class="text-2xl font-bold">Neuen Kunden anlegen</h2>
+                <button onclick="hideCustomerModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="customerForm" method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="add_customer">
+                <input type="hidden" name="customer_id" id="customerFormId">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Name</label>
+                        <input type="text" name="name" id="customerFormName" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Kundennummer</label>
+                        <input type="text" name="customer_number" id="customerFormNumber" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Kontingent Stunden</label>
+                        <input type="number" name="contingent_hours" id="customerFormHours" required min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Kontingent Minuten</label>
+                        <input type="number" name="contingent_minutes" id="customerFormMinutes" required min="0" max="59"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Notizen</label>
+                    <textarea name="notes" id="customerFormNotes" rows="10"
+                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="hideCustomerModal()"
+                            class="bg-gray-500 text-white px-4 py-2 rounded-lg">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
+                        Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Employee Modal -->
+    <div id="employeeModal" class="modal">
+        <div class="modal-content bg-white w-full max-w-2xl mx-auto mt-20 rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-start mb-6">
+                <h2 id="employeeModalTitle" class="text-2xl font-bold">Neuen Mitarbeiter anlegen</h2>
+                <button onclick="hideEmployeeModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="employeeForm" method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="add_employee">
+                <input type="hidden" name="employee_id" id="employeeFormId">
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Name</label>
+                    <input type="text" name="name" id="employeeFormName" required
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Notizen</label>
+                    <textarea name="notes" id="employeeFormNotes" rows="10"
+                              class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="hideEmployeeModal()"
+                            class="bg-gray-500 text-white px-4 py-2 rounded-lg">
+                        Abbrechen
+                    </button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg">
+                        Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal.active {
+            display: flex;
+        }
+    </style>
+
     <script>
-        // Alpine.js Initialization (falls benötigt)
-        document.addEventListener('alpine:init', () => {
-            // Hier können wir Alpine.js Komponenten definieren
+        // Modal Funktionen für Kunden
+        function showCustomerModal() {
+            document.getElementById('customerModalTitle').textContent = 'Neuen Kunden anlegen';
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerForm').querySelector('input[name="action"]').value = 'add_customer';
+            document.getElementById('customerFormId').value = '';
+            document.getElementById('customerModal').classList.add('active');
+        }
+
+        function showEditCustomerModal(customer) {
+            document.getElementById('customerModalTitle').textContent = 'Kunden bearbeiten';
+            document.getElementById('customerForm').querySelector('input[name="action"]').value = 'edit_customer';
+            document.getElementById('customerFormId').value = customer.id;
+            document.getElementById('customerFormName').value = customer.name;
+            document.getElementById('customerFormNumber').value = customer.customer_number;
+            document.getElementById('customerFormHours').value = customer.contingent_hours;
+            document.getElementById('customerFormMinutes').value = customer.contingent_minutes;
+            document.getElementById('customerFormNotes').value = customer.notes || '';
+            document.getElementById('customerModal').classList.add('active');
+        }
+
+        function hideCustomerModal() {
+            document.getElementById('customerModal').classList.remove('active');
+        }
+
+        // Modal Funktionen für Mitarbeiter
+        function showEmployeeModal() {
+            document.getElementById('employeeModalTitle').textContent = 'Neuen Mitarbeiter anlegen';
+            document.getElementById('employeeForm').reset();
+            document.getElementById('employeeForm').querySelector('input[name="action"]').value = 'add_employee';
+            document.getElementById('employeeFormId').value = '';
+            document.getElementById('employeeModal').classList.add('active');
+        }
+
+        function showEditEmployeeModal(employee) {
+            document.getElementById('employeeModalTitle').textContent = 'Mitarbeiter bearbeiten';
+            document.getElementById('employeeForm').querySelector('input[name="action"]').value = 'edit_employee';
+            document.getElementById('employeeFormId').value = employee.id;
+            document.getElementById('employeeFormName').value = employee.name;
+            document.getElementById('employeeFormNotes').value = employee.notes || '';
+            document.getElementById('employeeModal').classList.add('active');
+        }
+
+        function hideEmployeeModal() {
+            document.getElementById('employeeModal').classList.remove('active');
+        }
+
+        // Event-Listener für Modals
+        document.addEventListener('DOMContentLoaded', function() {
+            // Schließe Modals beim Klick außerhalb
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', function(event) {
+                    if (event.target === this) {
+                        hideCustomerModal();
+                        hideEmployeeModal();
+                    }
+                });
+            });
+
+            // Form-Handler für Kunden
+            document.getElementById('customerForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                }).then(async response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        const errorText = await response.text();
+                        console.error('Server Error:', errorText);
+                        throw new Error(`Fehler beim Speichern: ${errorText}`);
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    alert(error.message || 'Fehler beim Speichern des Kunden');
+                });
+            });
+
+            // Form-Handler für Mitarbeiter
+            document.getElementById('employeeForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                
+                fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        throw new Error('Fehler beim Speichern');
+                    }
+                }).catch(error => {
+                    console.error('Error:', error);
+                    alert('Fehler beim Speichern des Mitarbeiters');
+                });
+            });
         });
     </script>
 </body>
