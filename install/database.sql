@@ -24,10 +24,8 @@ CREATE TABLE work_entries (
     employee_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    start_datetime DATETIME NOT NULL,
-    end_datetime DATETIME,
-    manual_duration_hours INT,
-    manual_duration_minutes INT,
+    datetime DATETIME NOT NULL,
+    duration_minutes INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
