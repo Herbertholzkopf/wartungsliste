@@ -242,6 +242,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // Berechne den Verbrauch in Prozent
                         $usage_percentage = ($used_minutes / $total_contingent) * 100;
+
+                        // Berechne den verbleibenden Prozentsatz
+                        $remaining_percentage = 100 - (($used_minutes / $total_contingent) * 100);
                         
                         // Farbbestimmung für Fortschrittsbalken basierend auf Verbrauch
                         if ($usage_percentage >= 100) {
@@ -310,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                             
                             echo implode(' ', $output);
-                            
+                            echo " (" . number_format($remaining_percentage, 1) . "%)";
                             ?>
                         </td>
                         <td class="px-6 py-4">
