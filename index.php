@@ -240,17 +240,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $used_minutes = calculateUsedContingent($pdo, $customer['id'], $current_month, $current_year);
                         $remaining_minutes = $total_contingent - $used_minutes;
                         
-                        // Neue Prozentberechnung
-                        $usage_percentage = ($remaining_minutes / $total_contingent) * 100;
+                        // Berechne den Verbrauch in Prozent
+                        $usage_percentage = ($used_minutes / $total_contingent) * 100;
                         
-                        // Farbbestimmung für Fortschrittsbalken
-                        $color_class = 'bg-red-500';     // Default für überzogenes Kontingent (< 0%)
-                        if ($usage_percentage > 25) {
-                            $color_class = 'bg-green-500';  // Über 25% übrig
-                        } elseif ($usage_percentage > 0) {
-                            $color_class = 'bg-yellow-500'; // Zwischen 0% und 25% übrig
-                        } elseif ($usage_percentage == 0) {
-                            $color_class = 'bg-orange-500'; // Genau 0% übrig
+                        // Farbbestimmung für Fortschrittsbalken basierend auf Verbrauch
+                        if ($usage_percentage >= 100) {
+                            $color_class = 'bg-red-500';    // 100% oder mehr verbraucht
+                        } elseif ($usage_percentage >= 80) {
+                            $color_class = 'bg-orange-500'; // 80-99% verbraucht
+                        } elseif ($usage_percentage >= 50) {
+                            $color_class = 'bg-yellow-500'; // 50-79% verbraucht
+                        } else {
+                            $color_class = 'bg-green-500';  // 0-49% verbraucht
                         }
                         
                         // Formatierung der Stunden und Minuten
@@ -315,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <td class="px-6 py-4">
                             <div class="w-full bg-gray-200 rounded-full h-2.5">
                                 <div class="<?= $color_class ?> h-2.5 rounded-full" 
-                                    style="width: <?= $usage_percentage <= 0 ? '100' : min(100, max(0, $usage_percentage)) ?>%">
+                                    style="width: <?= min(100, max(0, $usage_percentage)) ?>%">
                                 </div>
                             </div>
                         </td>
