@@ -32,20 +32,15 @@ try {
     $stmt = $pdo->prepare("
         SELECT 
             w.*,
-            e.name as employee_name,
-            CASE 
-                WHEN w.manual_duration_hours IS NOT NULL 
-                THEN w.manual_duration_hours * 60 + COALESCE(w.manual_duration_minutes, 0)
-                ELSE TIMESTAMPDIFF(MINUTE, w.start_datetime, COALESCE(w.end_datetime, NOW()))
-            END as duration_minutes
+            e.name as employee_name
         FROM work_entries w
         JOIN employees e ON w.employee_id = e.id
         WHERE w.customer_id = ?
-        AND MONTH(w.start_datetime) = ?
-        AND YEAR(w.start_datetime) = ?
-        ORDER BY w.start_datetime DESC
+        AND MONTH(w.datetime) = ?
+        AND YEAR(w.datetime) = ?
+        ORDER BY w.datetime DESC
     ");
-    
+
     $stmt->execute([$customer_id, $month, $year]);
     $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
