@@ -310,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                             
                             echo implode(' ', $output);
-                            echo " (" . number_format($usage_percentage, 1) . "%)";
+                            
                             ?>
                         </td>
                         <td class="px-6 py-4">
