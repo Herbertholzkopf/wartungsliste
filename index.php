@@ -229,9 +229,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- Filter -->
             <div class="flex gap-2">
                 <select id="timeSpanFilter" class="px-4 py-2 border rounded-lg">
-                    <option value="all">Alle Zeiträume</option>
-                    <option value="monthly">Pro Monat</option>
-                    <option value="quarterly">Pro Quartal</option>
+                    <option value="all">alle Zeiträume</option>
+                    <option value="monthly">pro Monat</option>
+                    <option value="quarterly">pro Quartal</option>
                 </select>
                 
                 <button onclick="resetFilters()" 
