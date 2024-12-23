@@ -363,8 +363,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
-                        <input type="text" name="title" required
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        <div class="relative flex">
+                            <input type="text" name="title" id="ticketInput" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <button type="button" onclick="openTicket()"
+                                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
+                                title="Ticket öffnen">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -433,8 +442,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
-                        <input type="text" name="title" id="editTitle" required
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        <div class="relative flex">
+                            <input type="text" name="title" id="editTitle" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <button type="button" onclick="openTicket()"
+                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
+                                    title="Ticket öffnen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </button>
+                        </div>
                     </div>
                 </div>
 
@@ -631,6 +649,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 hour: '2-digit',
                 minute: '2-digit'
             });
+        }
+
+
+        function extractTicketNumber(input) {
+            // Extrahiert nur die Zahlen aus dem String
+            const numbers = input.match(/\d+/);
+            return numbers ? numbers[0] : null;
+        }
+
+        function openTicket() {
+            const ticketInput = document.getElementById('ticketInput');
+            const ticketText = ticketInput.value.trim();
+            
+            if (!ticketText) {
+                alert('Bitte geben Sie eine Ticketnummer ein.');
+                return;
+            }
+            
+            const ticketNumber = extractTicketNumber(ticketText);
+            
+            if (!ticketNumber) {
+                alert('Keine gültige Ticketnummer gefunden.');
+                return;
+            }
+            
+            const ticketUrl = `http://192.168.47.13/doit/portal.php?site=tt_show.php&ttid=${ticketNumber}`;
+            window.open(ticketUrl, '_blank');
+        }
+
+        function openEditTicket() {
+            const ticketInput = document.getElementById('editTitle');
+            const ticketText = ticketInput.value.trim();
+            
+            if (!ticketText) {
+                alert('Bitte geben Sie eine Ticketnummer ein.');
+                return;
+            }
+            
+            const ticketNumber = extractTicketNumber(ticketText);
+            
+            if (!ticketNumber) {
+                alert('Keine gültige Ticketnummer gefunden.');
+                return;
+            }
+            
+            const ticketUrl = `http://192.168.47.13/doit/portal.php?site=tt_show.php&ttid=${ticketNumber}`;
+            window.open(ticketUrl, '_blank');
         }
 
         // Schließe Modals beim Klick außerhalb
