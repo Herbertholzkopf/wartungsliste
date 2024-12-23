@@ -22,14 +22,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($_POST['action']) {
             case 'add_customer':
                 $stmt = $pdo->prepare("
-                    INSERT INTO customers (name, customer_number, contingent_hours, contingent_minutes, notes) 
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO customers (name, customer_number, contingent_hours, contingent_minutes, calculation_time_span, notes) 
+                    VALUES (?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $_POST['name'],
                     $_POST['customer_number'],
                     $_POST['contingent_hours'],
                     $_POST['contingent_minutes'],
+                    $_POST['calculation_time_span'],
                     $_POST['notes']
                 ]);
                 break;
@@ -41,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         customer_number = ?, 
                         contingent_hours = ?,
                         contingent_minutes = ?,
+                        calculation_time_span = ?,
                         notes = ?
                     WHERE id = ?
                 ");
@@ -49,6 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_POST['customer_number'],
                     $_POST['contingent_hours'],
                     $_POST['contingent_minutes'],
+                    $_POST['calculation_time_span'],
                     $_POST['notes'],
                     $_POST['customer_id']
                 ]);
@@ -146,6 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Abrechnungszeitraum</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aktionen</th>
                         </tr>
@@ -154,14 +158,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php
                         $customers = $pdo->query("SELECT * FROM customers ORDER BY name")->fetchAll();
                         foreach ($customers as $customer) {
+                            $timeSpanText = $customer['calculation_time_span'] === 'monthly' ? 'pro Monat' : 'pro Quartal';
                         ?>
                         <tr>
                             <td class="px-6 py-4"><?= htmlspecialchars($customer['name']) ?></td>
                             <td class="px-6 py-4"><?= htmlspecialchars($customer['customer_number']) ?></td>
                             <td class="px-6 py-4"><?= $customer['contingent_hours'] ?>h <?= $customer['contingent_minutes'] ?>min</td>
+                            <td class="px-6 py-4"><?= $timeSpanText ?></td>
                             <td class="px-6 py-4" title="<?= htmlspecialchars($customer['notes']) ?>">
-                <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
-            </td>
+                                <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
+                            </td>
                             <td class="px-6 py-4">
                                 <button onclick='showEditCustomerModal(<?= json_encode($customer) ?>)' 
                                         class="bg-blue-500 text-white px-3 py-1 rounded mr-2">
@@ -260,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Kontingent Stunden</label>
                         <input type="number" name="contingent_hours" id="customerFormHours" required min="0"
@@ -270,6 +276,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="block text-sm font-medium text-gray-700">Kontingent Minuten</label>
                         <input type="number" name="contingent_minutes" id="customerFormMinutes" required min="0" max="59"
                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Abrechnungszeitraum</label>
+                        <select name="calculation_time_span" id="customerFormTimeSpan" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <option value="monthly">pro Monat</option>
+                            <option value="quarterly">pro Quartal</option>
+                        </select>
                     </div>
                 </div>
 
@@ -366,6 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('customerFormNumber').value = customer.customer_number;
             document.getElementById('customerFormHours').value = customer.contingent_hours;
             document.getElementById('customerFormMinutes').value = customer.contingent_minutes;
+            document.getElementById('customerFormTimeSpan').value = customer.calculation_time_span;
             document.getElementById('customerFormNotes').value = customer.notes || '';
             document.getElementById('customerModal').classList.add('active');
         }

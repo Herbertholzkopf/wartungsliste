@@ -24,21 +24,55 @@ $current_year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
 // Funktion zum Berechnen des verbrauchten Kontingents
 function calculateUsedContingent($pdo, $customer_id, $month, $year) {
-    $stmt = $pdo->prepare("
-        SELECT 
-            COALESCE(SUM(
-                CASE 
-                    WHEN manual_duration_hours IS NOT NULL 
-                    THEN manual_duration_hours * 60 + COALESCE(manual_duration_minutes, 0)
-                    ELSE TIMESTAMPDIFF(MINUTE, start_datetime, COALESCE(end_datetime, NOW()))
-                END
-            ), 0) as total_minutes
-        FROM work_entries 
-        WHERE customer_id = ? 
-        AND MONTH(start_datetime) = ? 
-        AND YEAR(start_datetime) = ?
-    ");
-    $stmt->execute([$customer_id, $month, $year]);
+    // Hole zuerst den calculation_time_span des Kunden
+    $stmt = $pdo->prepare("SELECT calculation_time_span FROM customers WHERE id = ?");
+    $stmt->execute([$customer_id]);
+    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($customer['calculation_time_span'] === 'monthly') {
+        // Für monatliche Kunden: Berechne nur den ausgewählten Monat
+        $stmt = $pdo->prepare("
+            SELECT 
+                COALESCE(SUM(
+                    CASE 
+                        WHEN manual_duration_hours IS NOT NULL 
+                        THEN manual_duration_hours * 60 + COALESCE(manual_duration_minutes, 0)
+                        ELSE TIMESTAMPDIFF(MINUTE, start_datetime, COALESCE(end_datetime, NOW()))
+                    END
+                ), 0) as total_minutes
+            FROM work_entries 
+            WHERE customer_id = ? 
+            AND MONTH(start_datetime) = ? 
+            AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$customer_id, $month, $year]);
+    } else {
+        // Für Quartalskunden: Berechne das gesamte Quartal
+        
+        // Bestimme das aktuelle Quartal
+        $quarter = ceil($month / 3);
+        
+        // Berechne Start- und End-Monat des Quartals
+        $startMonth = ($quarter - 1) * 3 + 1;
+        $endMonth = $quarter * 3;
+        
+        $stmt = $pdo->prepare("
+            SELECT 
+                COALESCE(SUM(
+                    CASE 
+                        WHEN manual_duration_hours IS NOT NULL 
+                        THEN manual_duration_hours * 60 + COALESCE(manual_duration_minutes, 0)
+                        ELSE TIMESTAMPDIFF(MINUTE, start_datetime, COALESCE(end_datetime, NOW()))
+                    END
+                ), 0) as total_minutes
+            FROM work_entries 
+            WHERE customer_id = ? 
+            AND MONTH(start_datetime) BETWEEN ? AND ?
+            AND YEAR(start_datetime) = ?
+        ");
+        $stmt->execute([$customer_id, $startMonth, $endMonth, $year]);
+    }
+    
     return $stmt->fetch(PDO::FETCH_ASSOC)['total_minutes'];
 }
 
@@ -252,6 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verbleibend</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fortschritt</th>
                     </tr>
                 </thead>
@@ -275,6 +310,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } elseif ($usage_percentage == 0) {
                             $color_class = 'bg-orange-500'; // Genau 0% übrig
                         }
+                        
+                        // Formatierung der Stunden und Minuten
+                        $total_hours = floor($total_contingent / 60);
+                        $total_mins = $total_contingent % 60;
+                        $remaining_hours = floor(abs($remaining_minutes) / 60);
+                        $remaining_mins = abs($remaining_minutes) % 60;
+                        $prefix = $remaining_minutes < 0 ? '-' : '';
                     ?>
                     <tr class="hover:bg-gray-50 cursor-pointer" onclick='showCustomerModal(<?php echo json_encode([
                         "id" => $customer["id"],
@@ -287,18 +329,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <td class="px-6 py-4 font-medium"><?php echo htmlspecialchars($customer['name']); ?></td>
                         <td class="px-6 py-4"><?php echo htmlspecialchars($customer['customer_number']); ?></td>
                         <td class="px-6 py-4">
-                            <?php
-                            $remaining_hours = floor(abs($remaining_minutes) / 60);
-                            $remaining_mins = abs($remaining_minutes) % 60;
-                            $prefix = $remaining_minutes < 0 ? '-' : '';
-                            echo "{$customer['contingent_hours']}h {$customer['contingent_minutes']}min: ";
-                            echo "{$prefix}{$remaining_hours}h {$remaining_mins}min übrig ";
-                            echo "(" . number_format($usage_percentage, 1) . "%)";
+                            <?php 
+                            $timespan_text = $customer['calculation_time_span'] === 'monthly' ? 'pro Monat' : 'pro Quartal';
+                            echo "{$total_hours}h {$total_mins}min {$timespan_text}"; 
+                            ?>
+                        </td>
+                        <td class="px-6 py-4">
+                            <?php 
+                            echo "{$prefix}{$remaining_hours}h {$remaining_mins}min";
+                            echo " (" . number_format($usage_percentage, 1) . "%)";
                             ?>
                         </td>
                         <td class="px-6 py-4">
                             <div class="w-full bg-gray-200 rounded-full h-2.5">
-                                <div class="<?= $color_class ?> h-2.5 rounded-full" style="width: <?= $usage_percentage <= 0 ? '100' : min(100, max(0, $usage_percentage)) ?>%"></div>
+                                <div class="<?= $color_class ?> h-2.5 rounded-full" 
+                                    style="width: <?= $usage_percentage <= 0 ? '100' : min(100, max(0, $usage_percentage)) ?>%">
+                                </div>
                             </div>
                         </td>
                     </tr>

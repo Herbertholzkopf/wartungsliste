@@ -8,6 +8,7 @@ CREATE TABLE customers (
     name VARCHAR(255) NOT NULL,
     contingent_hours INT NOT NULL,
     contingent_minutes INT NOT NULL,
+    calculation_time_span VARCHAR(10) NOT NULL DEFAULT 'monthly' CHECK (calculation_time_span IN ('monthly', 'quarterly')),
     notes TEXT
 );
 
