@@ -175,8 +175,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Monatsauswahl -->
             <div class="flex gap-4 items-center">
-                <form method="GET" class="flex gap-2">
-                    <select name="month" class="px-4 py-2 border rounded-lg">
+                <div class="flex gap-2">
+                    <select id="monthSelect" name="month" class="px-4 py-2 border rounded-lg">
                         <?php
                         $monate = array(
                             1 => 'Januar',
@@ -199,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         ?>
                     </select>
-                    <select name="year" class="px-4 py-2 border rounded-lg">
+                    <select id="yearSelect" name="year" class="px-4 py-2 border rounded-lg">
                         <?php
                         $current_year_num = date('Y');
                         // Zeige 2 Jahre zurück und 1 Jahr in die Zukunft an
@@ -209,16 +209,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         ?>
                     </select>
-                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                        Anzeigen
-                    </button>
-                </form>
+                </div>
                 
-                <a href="settings.php" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                <a href="settings.php" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
                     Einstellungen
                 </a>
             </div>
         </div>
+        
+        <div class="mb-6 flex flex-wrap gap-4 items-center">
+            <!-- Suchleiste -->
+            <div class="flex-grow">
+                <input type="text" 
+                    id="searchInput" 
+                    placeholder="Nach Kunde oder Kundennummer suchen..." 
+                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            
+            <!-- Filter -->
+            <div class="flex gap-2">
+                <select id="timeSpanFilter" class="px-4 py-2 border rounded-lg">
+                    <option value="all">Alle Zeiträume</option>
+                    <option value="monthly">Pro Monat</option>
+                    <option value="quarterly">Pro Quartal</option>
+                </select>
+                
+                <button onclick="resetFilters()" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                    Zurücksetzen
+                </button>
+            </div>
+        </div>
+
 
         <!-- Kunden Table -->
         <div class="bg-white rounded-lg shadow-sm overflow-hidden">
@@ -710,6 +732,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
         });
+
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const timeSpanFilter = document.getElementById('timeSpanFilter').value;
+            const rows = document.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const customerData = JSON.parse(row.getAttribute('onclick').match(/showCustomerModal\((.*?)\)/)[1]);
+                const customerName = customerData.name.toLowerCase();
+                const customerNumber = customerData.customer_number.toLowerCase();
+                const calculationTimeSpan = customerData.calculation_time_span;
+                
+                const matchesSearch = customerName.includes(searchTerm) || 
+                                    customerNumber.includes(searchTerm);
+                
+                const matchesTimeSpan = timeSpanFilter === 'all' || 
+                                    calculationTimeSpan === timeSpanFilter;
+                
+                row.style.display = matchesSearch && matchesTimeSpan ? '' : 'none';
+            });
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('timeSpanFilter').value = 'all';
+            filterTable();
+        }
+
+        function updateDateSelection() {
+            const month = document.getElementById('monthSelect').value;
+            const year = document.getElementById('yearSelect').value;
+            
+            // Erstelle die neue URL mit den ausgewählten Parametern
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('month', month);
+            currentUrl.searchParams.set('year', year);
+            
+            // Navigiere zur neuen URL
+            window.location.href = currentUrl.toString();
+        }
+
+        document.getElementById('monthSelect').addEventListener('change', updateDateSelection);
+        document.getElementById('yearSelect').addEventListener('change', updateDateSelection);
+
+        document.getElementById('searchInput').addEventListener('input', filterTable);
+        document.getElementById('timeSpanFilter').addEventListener('change', filterTable);
 
         document.getElementById('editForm').addEventListener('submit', async function(event) {
             event.preventDefault();
