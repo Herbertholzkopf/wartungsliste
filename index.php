@@ -210,10 +210,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ?>
                     </select>
                 </div>
-                
-                <a href="settings.php" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                    Einstellungen
-                </a>
+                <div class="flex gap-2">
+                    <button onclick="window.location.reload()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                        Aktualisieren
+                    </button>
+                    <a href="settings.php" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        Einstellungen
+                    </a>
+                </div>
             </div>
         </div>
         
@@ -269,14 +273,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $remaining_percentage = 100 - (($used_minutes / $total_contingent) * 100);
                         
                         // Farbbestimmung für Fortschrittsbalken basierend auf Verbrauch
-                        if ($usage_percentage >= 100) {
-                            $color_class = 'bg-red-500';    // 100% oder mehr verbraucht
-                        } elseif ($usage_percentage >= 80) {
-                            $color_class = 'bg-orange-500'; // 80-99% verbraucht
-                        } elseif ($usage_percentage >= 50) {
-                            $color_class = 'bg-yellow-500'; // 50-79% verbraucht
+                        if ($usage_percentage > 100) {
+                            $color_class = 'bg-red-500';     // über 100%
+                        } elseif ($usage_percentage > 75) {
+                            $color_class = 'bg-yellow-500';  // 76-100%
                         } else {
-                            $color_class = 'bg-green-500';  // 0-49% verbraucht
+                            $color_class = 'bg-green-500';   // 0-75%
                         }
                         
                         // Formatierung der Stunden und Minuten
