@@ -414,14 +414,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Event-Listener für Modals
         document.addEventListener('DOMContentLoaded', function() {
             // Schließe Modals beim Klick außerhalb
-            document.querySelectorAll('.modal').forEach(modal => {
-                modal.addEventListener('click', function(event) {
-                    if (event.target === this) {
-                        hideCustomerModal();
-                        hideEmployeeModal();
-                    }
-                });
-            });
+            //document.querySelectorAll('.modal').forEach(modal => {
+            //    modal.addEventListener('click', function(event) {
+            //        if (event.target === this) {
+            //            hideCustomerModal();
+            //            hideEmployeeModal();
+            //        }
+            //    });
+            //});
 
             // Form-Handler für Kunden
             document.getElementById('customerForm').addEventListener('submit', function(e) {

@@ -253,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verbleibend</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fortschritt</th>
@@ -295,10 +296,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         "contingent_hours" => $customer["contingent_hours"],
                         "contingent_minutes" => $customer["contingent_minutes"],
                         "used_minutes" => $used_minutes,
-                        "calculation_time_span" => $customer["calculation_time_span"]
+                        "calculation_time_span" => $customer["calculation_time_span"],
+                        "notes" => $customer["notes"]
                     ]); ?>)'>
                         <td class="px-6 py-4 font-medium"><?php echo htmlspecialchars($customer['name']); ?></td>
                         <td class="px-6 py-4"><?php echo htmlspecialchars($customer['customer_number']); ?></td>
+                        <td class="px-6 py-4" title="<?= htmlspecialchars($customer['notes']) ?>">
+                            <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
+                        </td>
                         <td class="px-6 py-4">
                             <?php 
                             $timespan_text = $customer['calculation_time_span'] === 'monthly' ? 'pro Monat' : 'pro Quartal';
@@ -533,19 +538,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 contingentText.push(`${customer.contingent_minutes}min`);
             }
             
-            // Erstelle zwei separate Zeilen
+
             const customerNumberDiv = document.createElement('div');
             customerNumberDiv.textContent = `Kundennummer: ${customer.customer_number}`;
             
             const contingentDiv = document.createElement('div');
             const timespan = customer.calculation_time_span === 'monthly' ? 'pro Monat' : 'pro Quartal';
             contingentDiv.textContent = `Kontingent: ${contingentText.join(' ')} ${timespan}`;
+
+            const notesDiv = document.createElement('div');
+            const notesText = customer.notes ? customer.notes : '';
+            const shortenedNotes = notesText.length > 50 ? notesText.substring(0, 50) + '...' : notesText;
+            notesDiv.textContent = `Notizen: ${shortenedNotes}`;
+            notesDiv.title = notesText; // Vollständiger Text als Tooltip
             
-            // Leere den modalCustomerDetails Container und füge die neuen Elemente hinzu
+
             const modalCustomerDetails = document.getElementById('modalCustomerDetails');
             modalCustomerDetails.innerHTML = '';
             modalCustomerDetails.appendChild(customerNumberDiv);
             modalCustomerDetails.appendChild(contingentDiv);
+            modalCustomerDetails.appendChild(notesDiv);
 
             await loadWorkEntries(customer.id);
             document.getElementById('customerModal').classList.add('active');
@@ -726,14 +738,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Schließe Modals beim Klick außerhalb
-        document.querySelectorAll('.modal').forEach(modal => {
-            modal.addEventListener('click', function(event) {
-                if (event.target === this) {
-                    hideModal();
-                    hideEditModal();
-                }
-            });
-        });
+        //document.querySelectorAll('.modal').forEach(modal => {
+        //    modal.addEventListener('click', function(event) {
+        //        if (event.target === this) {
+        //            hideModal();
+        //            hideEditModal();
+        //        }
+        //    });
+        //});
 
         function filterTable() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
