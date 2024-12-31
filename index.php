@@ -252,7 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kd.Nr.</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verbleibend</th>

@@ -11,13 +11,16 @@ def load_config(config_file='mail_config.ini'):
     config = configparser.ConfigParser(interpolation=None)  # Hier wird die Interpolation deaktiviert
     config.read(config_file)
     
+    # Empfängerliste aufteilen und Leerzeichen entfernen
+    recipients = [email.strip() for email in config['EMAIL']['recipient'].split(';')]
+    
     return {
         'smtp_server': config['EMAIL']['smtp_server'],
         'smtp_port': config['EMAIL']['smtp_port'],
         'username': config['EMAIL']['username'],
         'password': config['EMAIL']['password'],
         'sender': config['EMAIL']['sender'],
-        'recipient': config['EMAIL']['recipient']
+        'recipients': recipients
     }
 
 def send_html_reports(folder_path='.'):
@@ -36,7 +39,7 @@ def send_html_reports(folder_path='.'):
     # E-Mail vorbereiten
     msg = MIMEMultipart()
     msg['From'] = config['sender']
-    msg['To'] = config['recipient']
+    msg['To'] = ', '.join(config['recipients'])  # Empfänger mit Komma getrennt
     msg['Subject'] = "Wartungsverträge Report"
     
     # Haupttext der E-Mail
@@ -60,11 +63,11 @@ def send_html_reports(folder_path='.'):
         server.starttls()  # TLS-Verschlüsselung aktivieren
         server.login(config['username'], config['password'])
         
-        # E-Mail senden
+        # E-Mail an alle Empfänger senden
         server.send_message(msg)
         server.quit()
         
-        print(f"E-Mail erfolgreich versendet mit {len(html_files)} Anhängen.")
+        print(f"E-Mail erfolgreich versendet an {len(config['recipients'])} Empfänger mit {len(html_files)} Anhängen.")
         
         # Nach erfolgreichem Versand Dateien löschen
         for html_file in html_files:
