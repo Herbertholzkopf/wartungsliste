@@ -1,6 +1,7 @@
 import mysql.connector
 from datetime import datetime
 import os
+import math
 
 def connect_to_db():
     """Verbindung zur Datenbank herstellen"""
@@ -12,46 +13,50 @@ def connect_to_db():
         ssl_disabled=True
     )
 
-def calculate_used_contingent(cursor, customer_id, month, year):
-    """Berechnet das verbrauchte Kontingent eines Kunden"""
+def get_quarter_range(month):
+    """Ermittelt Start- und Endmonat des Quartals"""
+    quarter = math.ceil(month / 3)
+    start_month = (quarter - 1) * 3 + 1
+    end_month = quarter * 3
+    return start_month, end_month
+
+def calculate_used_contingent(cursor, customer_id, current_month, current_year):
+    """Berechnet das verbrauchte Kontingent eines Kunden im aktuellen Quartal"""
+    start_month, end_month = get_quarter_range(current_month)
+    
     query = """
         SELECT COALESCE(SUM(duration_minutes), 0) as total_minutes
         FROM work_entries 
         WHERE customer_id = %s 
-        AND MONTH(datetime) = %s 
+        AND MONTH(datetime) BETWEEN %s AND %s
         AND YEAR(datetime) = %s
     """
-    # print(f"Executing query for customer {customer_id}, month {month}, year {year}")
-    cursor.execute(query, (customer_id, month, year))
+    cursor.execute(query, (customer_id, start_month, end_month, current_year))
     result = cursor.fetchone()
-    # print(f"Query result: {result}")
     return result['total_minutes'] if result else 0
+
+def get_quarter_name(month):
+    """Gibt den Namen des Quartals zurück"""
+    quarter = math.ceil(month / 3)
+    return f"{quarter}. Quartal"
 
 def generate_html_report():
     """Generiert den HTML-Report"""
     current_date = datetime.now()
     current_month = current_date.month
     current_year = current_date.year
+    current_quarter = get_quarter_name(current_month)
     
     conn = connect_to_db()
     cursor = conn.cursor(dictionary=True)
     
-    # Hole alle monatlichen Kunden
+    # Hole alle Quartalskunden
     cursor.execute("""
         SELECT * FROM customers 
-        WHERE calculation_time_span = 'monthly'
+        WHERE calculation_time_span = 'quarterly'
         ORDER BY name
     """)
     customers = cursor.fetchall()
-    
-    # Deutsche Monatsnamen
-    monate = {
-        1: 'Januar', 2: 'Februar', 3: 'März', 4: 'April',
-        5: 'Mai', 6: 'Juni', 7: 'Juli', 8: 'August',
-        9: 'September', 10: 'Oktober', 11: 'November', 12: 'Dezember'
-    }
-    
-    month_year = f"{monate[current_month]} {current_year}"
     
     # HTML Template Start
     html_content = f"""
@@ -60,7 +65,7 @@ def generate_html_report():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Monatliche Wartungsverträge Auswertung</title>
+        <title>Quartals Wartungsverträge Auswertung</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style>
             @media print {{
@@ -71,7 +76,7 @@ def generate_html_report():
     </head>
     <body class="bg-gray-100">
         <div class="container mx-auto px-4 py-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-8">Wartungsverträge Auswertung - {month_year}</h1>
+            <h1 class="text-3xl font-bold text-gray-800 mb-8">Wartungsverträge Auswertung - {current_quarter} {current_year}</h1>
             
             <div class="bg-white rounded-lg shadow-sm overflow-hidden">
                 <table class="w-full">
@@ -131,7 +136,7 @@ def generate_html_report():
         <tr class="hover:bg-gray-50">
             <td class="px-6 py-4 font-medium">{customer['name']}</td>
             <td class="px-6 py-4">{customer['customer_number']}</td>
-            <td class="px-6 py-4">{contingent_display} pro Monat</td>
+            <td class="px-6 py-4">{contingent_display} pro Quartal</td>
             <td class="px-6 py-4">{remaining_display} ({remaining_percentage:.1f}%)</td>
             <td class="px-6 py-4">
                 <div class="w-full bg-gray-200 rounded-full h-2.5">
@@ -156,7 +161,8 @@ def generate_html_report():
     """
     
     # Speichere die HTML-Datei
-    filename = f"wartungsvertraege_{current_year}_{current_month:02d}.html"
+    quarter = math.ceil(current_month / 3)
+    filename = f"wartungsvertraege_quartal_{current_year}_Q{quarter}.html"
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
