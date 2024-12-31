@@ -21,7 +21,7 @@ echo -e "${YELLOW}Systemkomponenten werden aktualisiert...${NC}"
 apt-get update
 apt-get upgrade -y
 
-# Installation von Python & Python-Paketen
+# Installation von Nginx & PHP-Paketen
 echo -e "${YELLOW}Web- & Datenbankserver werden installiert...${NC}"
 apt-get install -y nginx mysql-server php-fpm php-mysql
 
