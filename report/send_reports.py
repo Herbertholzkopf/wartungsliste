@@ -66,8 +66,18 @@ def send_html_reports(folder_path='.'):
         
         print(f"E-Mail erfolgreich versendet mit {len(html_files)} Anhängen.")
         
+        # Nach erfolgreichem Versand Dateien löschen
+        for html_file in html_files:
+            file_path = os.path.join(folder_path, html_file)
+            try:
+                os.remove(file_path)
+                print(f"Datei {html_file} wurde gelöscht.")
+            except Exception as e:
+                print(f"Fehler beim Löschen von {html_file}: {str(e)}")
+                
     except Exception as e:
         print(f"Fehler beim Senden der E-Mail: {str(e)}")
+        print("Dateien wurden nicht gelöscht, da die E-Mail nicht versendet wurde.")
 
 if __name__ == "__main__":
     send_html_reports()

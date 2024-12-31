@@ -1,15 +1,21 @@
 import mysql.connector
 from datetime import datetime
 import os
+import configparser
+from pathlib import Path
 
 def connect_to_db():
     """Verbindung zur Datenbank herstellen"""
+    config = configparser.ConfigParser(interpolation=None)  # Hier wird die Interpolation deaktiviert
+    config_path = Path(__file__).parent / 'database_config.ini'
+    config.read(config_path)
+    
     return mysql.connector.connect(
-        host="localhost",
-        user="wartungsliste_user",
-        password="12345678",
-        database="wartungsliste",
-        ssl_disabled=True
+        host=config['database']['host'],
+        user=config['database']['user'],
+        password=config['database']['password'],
+        database=config['database']['database'],
+        ssl_disabled=config['database'].getboolean('ssl_disabled')
     )
 
 def calculate_used_contingent(cursor, customer_id, month, year):
