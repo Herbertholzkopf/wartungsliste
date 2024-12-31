@@ -108,19 +108,21 @@ cat > /etc/nginx/sites-available/wartungsliste <<'EOF'
 server {
     listen 80;
     server_name _;
-    root /var/www/wartungsliste;
+    root /var/www;
     index index.php index.html;
 
-    # Hauptlocation
-    location / {
-        try_files $uri $uri/ /index.php?$args;
-    }
+    # Hauptlocation für /wartungsliste
+    location /wartungsliste {
+        alias /var/www/wartungsliste;
+        try_files $uri $uri/ /wartungsliste/index.php?$args;
 
-    # PHP-Verarbeitung
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php-fpm.sock;
-        fastcgi_intercept_errors on;
+        # PHP-Verarbeitung
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/var/run/php/php-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $request_filename;
+            fastcgi_intercept_errors on;
+        }
     }
 
     # Verhindern des Zugriffs auf versteckte Dateien
