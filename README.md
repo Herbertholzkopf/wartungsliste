@@ -13,7 +13,6 @@ das kann mit dem Editor nano folgendermaßen gemacht werden:
 `nano /var/www/wartungsliste/config.php` (Konfiguration für den Zugriff auf die Datenbank über Website)
 `nano /var/www/wartungsliste/report/database_config.ini` (Konfiguration für den Zugriff auf die Datenbank für die Reports [siehe weiter unten])
 `nano /var/www/wartungsliste/report/mail_config.ini` (Konfiguration der Zugangsdaten des Mailanbieters)
-```
 
 
 ## Report-Funktion
