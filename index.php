@@ -165,6 +165,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .container {
             margin-bottom: 4rem;
         }
+
+        body {
+            padding-bottom: 4rem;
+        }
+
+        footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        background-color: white;
+        border-top: 1px solid #e5e7eb;
+        padding: 1rem 0;
+        z-index: 100;
+        color: #6b7280;
+        }
+
+        footer .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-link {
+            color: inherit;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -845,8 +872,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
     </script>
 
-    <footer class="fixed bottom-0 w-full text-center py-4 text-gray-600 bg-white border-t border-gray-200 z-10">
-        Made with ❤️ by Andreas Koller
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
+        <div class="container mx-auto text-center">
+            Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller</a>
+        </div>
     </footer>
 
 </body>
