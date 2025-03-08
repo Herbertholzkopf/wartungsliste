@@ -30,3 +30,16 @@ CREATE TABLE work_entries (
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
+
+
+-- Tabelle für die Verwaltung der verbrauchten Minuten
+-- Die Tabelle enthält die verbrauchten Minuten pro Kunde im aktuellen Abrechungszeitraum
+-- Die Tabelle enthält den Status des verbrauchten Minutenkontingents im Vergleich mit dem verfügbaren Minutenkontingent
+-- Der Status kann die Werte 'ok', 'warning' oder 'danger' annehmen
+CREATE TABLE customer_contingent_status (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    used_minutes INT NOT NULL DEFAULT 0,
+    status VARCHAR(10) NOT NULL DEFAULT 'ok' CHECK (status IN ('ok', 'warning', 'danger')),
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
