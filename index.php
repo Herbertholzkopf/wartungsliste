@@ -18,6 +18,31 @@ try {
     die("Verbindungsfehler: " . $e->getMessage());
 }
 
+// Statistiken abrufen
+$stats = [
+    'customers' => 0,
+    'okay' => 0, 
+    'warning' => 0, 
+    'exceeded' => 0
+];
+
+// Statistik-Abfrage
+$statsQuery = "
+    SELECT 
+        (SELECT COUNT(*) FROM customers) AS total_customers,
+        (SELECT COUNT(*) FROM customer_contingent_status WHERE status = 'ok') AS okay_count,
+        (SELECT COUNT(*) FROM customer_contingent_status WHERE status = 'warning') AS warning_count,
+        (SELECT COUNT(*) FROM customer_contingent_status WHERE status = 'danger') AS exceeded_count
+";
+
+$statsResult = $pdo->query($statsQuery);
+if ($statsResult && $statsRow = $statsResult->fetch(PDO::FETCH_ASSOC)) {
+    $stats['customers'] = $statsRow['total_customers'];
+    $stats['okay'] = $statsRow['okay_count'];
+    $stats['warning'] = $statsRow['warning_count'];
+    $stats['exceeded'] = $statsRow['exceeded_count'];
+}
+
 // Aktueller Monat und Jahr
 $current_month = isset($_GET['month']) ? $_GET['month'] : date('m');
 $current_year = isset($_GET['year']) ? $_GET['year'] : date('Y');
@@ -248,6 +273,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
         
+        <!-- Statistiken -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-sm text-gray-500">Kunden</div>
+                <div class="text-2xl font-bold mt-1"><?php echo $stats['customers']; ?></div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-sm text-gray-500">Okay</div>
+                <div class="text-2xl font-bold text-green-600 mt-1"><?php echo $stats['okay']; ?></div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-sm text-gray-500">Warnung</div>
+                <div class="text-2xl font-bold text-yellow-600 mt-1"><?php echo $stats['warning']; ?></div>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="text-sm text-gray-500">Überzogen</div>
+                <div class="text-2xl font-bold text-red-600 mt-1"><?php echo $stats['exceeded']; ?></div>
+            </div>
+        </div>
+
         <div class="mb-6 flex flex-wrap gap-4 items-center">
             <!-- Suchleiste -->
             <div class="flex-grow">
