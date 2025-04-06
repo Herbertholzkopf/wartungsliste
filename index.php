@@ -676,7 +676,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     `;
                 }).join('');
                 
-                document.getElementById('workEntriesList').innerHTML = entriesHtml;
+                const modalTitle = document.getElementById('modalCustomerName');
+                const customerData = JSON.parse(document.querySelector(`tr[onclick*='"id":${customerId}']`).getAttribute('onclick').match(/showCustomerModal\((.*?)\)/)[1]);
+                
+                // Anzeigen, welcher Zeitraum betrachtet wird
+                let timeframeInfo = '';
+                const currentMonth = <?= $current_month ?>;
+                const currentYear = <?= $current_year ?>;
+                
+                if (customerData.calculation_time_span === 'quarterly') {
+                    const quarter = Math.ceil(currentMonth / 3);
+                    timeframeInfo = ` (Quartal ${quarter}/${currentYear})`;
+                } else {
+                    // Monatsname ohne PHP-Variable generieren
+                    const monthNames = [
+                        'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+                        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+                    ];
+                    const monthName = monthNames[currentMonth - 1]; // Arrays sind 0-basiert
+                    timeframeInfo = ` (${monthName} ${currentYear})`;
+                }
+                
+                // Füge den Zeitraum zum Titel hinzu, falls noch nicht vorhanden
+                if (!modalTitle.textContent.includes('(')) {
+                    modalTitle.textContent += timeframeInfo;
+                }
+                
+                document.getElementById('workEntriesList').innerHTML = entriesHtml || '<div class="text-gray-500 text-center py-4">Keine Einträge für diesen Zeitraum</div>';
             } catch (error) {
                 console.error('Error loading work entries:', error);
                 document.getElementById('workEntriesList').innerHTML = 
