@@ -152,8 +152,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("DELETE FROM work_entries WHERE id = ?");
                 $stmt->execute([$_POST['entry_id']]);
                 break;
-        }
+                
+            // Im switch case Block in der index.php
+            case 'add_emergency':
+                if (!isset($_POST['emergency_date']) || !isset($_POST['emergency_title'])) {
+                    throw new Exception('Alle Felder müssen ausgefüllt sein');
+                }
 
+                $emergency_description = $_POST['emergency_description'] ?? '';
+
+                $stmt = $pdo->prepare("
+                    INSERT INTO emergency_tickets (
+                        customer_id, 
+                        title, 
+                        description,
+                        datetime
+                    ) VALUES (?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $_POST['customer_id'],
+                    $_POST['emergency_title'],
+                    $emergency_description,
+                    $_POST['emergency_date'] . ' 00:00:00'
+                ]);
+                break;
+
+            case 'edit_emergency':
+                if (!isset($_POST['emergency_date']) || !isset($_POST['emergency_title'])) {
+                    throw new Exception('Alle Felder müssen ausgefüllt sein');
+                }
+
+                $emergency_description = $_POST['emergency_description'] ?? '';
+
+                $stmt = $pdo->prepare("
+                    UPDATE emergency_tickets 
+                    SET title = ?, 
+                        description = ?, 
+                        datetime = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([
+                    $_POST['emergency_title'],
+                    $emergency_description,
+                    $_POST['emergency_date'] . ' 00:00:00',
+                    $_POST['emergency_id']
+                ]);
+                break;
+            
+            case 'delete_emergency':
+                if (!isset($_POST['emergency_id']) || empty($_POST['emergency_id'])) {
+                    throw new Exception('Keine Ticket-ID angegeben');
+                }
+            
+                // Debug-Ausgabe für Fehlersuche
+                error_log('Lösche Notfallticket mit ID: ' . $_POST['emergency_id']);
+                
+                try {
+                    // Prüfen ob das Ticket existiert
+                    $checkStmt = $pdo->prepare("SELECT COUNT(*) FROM emergency_tickets WHERE id = ?");
+                    $checkStmt->execute([$_POST['emergency_id']]);
+                    $count = $checkStmt->fetchColumn();
+                    
+                    if ($count == 0) {
+                        error_log('Fehler: Notfallticket mit ID ' . $_POST['emergency_id'] . ' existiert nicht');
+                        throw new Exception('Notfallticket existiert nicht oder wurde bereits gelöscht');
+                    }
+                    
+                    // PDO in den Exception-Modus versetzen, um Fehler besser zu erkennen
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    
+                    $stmt = $pdo->prepare("DELETE FROM emergency_tickets WHERE id = ?");
+                    $result = $stmt->execute([$_POST['emergency_id']]);
+                    
+                    if (!$result) {
+                        error_log('Fehler beim Löschen des Notfalltickets: ' . implode(', ', $stmt->errorInfo()));
+                        throw new Exception('Fehler beim Löschen des Notfalltickets: ' . implode(', ', $stmt->errorInfo()));
+                    }
+                    
+                    $rowCount = $stmt->rowCount();
+                    error_log('Notfallticket erfolgreich gelöscht. Betroffene Zeilen: ' . $rowCount);
+                    
+                    if ($rowCount == 0) {
+                        throw new Exception('Notfallticket konnte nicht gelöscht werden (0 Zeilen betroffen)');
+                    }
+                } catch (PDOException $e) {
+                    error_log('PDO Exception beim Löschen: ' . $e->getMessage());
+                    throw new Exception('Datenbankfehler beim Löschen: ' . $e->getMessage());
+                }
+                
+                break;
+        }
+        
         // Sende eine Erfolgsantwort zurück
         http_response_code(200);
         echo json_encode(['success' => true]);
@@ -216,6 +305,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .footer-link {
             color: inherit;
             text-decoration: none;
+        }
+        
+        .tab {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            border-bottom: 2px solid #3b82f6;
+            font-weight: bold;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
         }
     </style>
 </head>
@@ -325,7 +433,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kunde</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kd.Nr.</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verbleibend</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fortschritt</th>
@@ -373,9 +480,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]); ?>)'>
                         <td class="px-6 py-4 font-medium"><?php echo htmlspecialchars($customer['name']); ?></td>
                         <td class="px-6 py-4"><?php echo htmlspecialchars($customer['customer_number']); ?></td>
-                        <td class="px-6 py-4" title="<?= htmlspecialchars($customer['notes']) ?>">
-                            <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
-                        </td>
                         <td class="px-6 py-4">
                             <?php 
                             $timespan_text = $customer['calculation_time_span'] === 'monthly' ? 'pro Monat' : 'pro Quartal';
@@ -436,86 +540,146 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <!-- Customer Modal -->
     <div id="customerModal" class="modal">
         <div class="modal-content bg-white w-full max-w-4xl mx-auto mt-20 rounded-lg shadow-lg p-6 overflow-y-auto" style="max-height: 80vh;">
-        <div class="flex justify-between items-start mb-6">
-            <div>
-                <h2 id="modalCustomerName" class="text-2xl font-bold mb-2"></h2>
-                <div id="modalCustomerDetails" class="text-gray-600 space-y-1"></div>
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 id="modalCustomerName" class="text-2xl font-bold mb-2"></h2>
+                    <div id="modalCustomerDetails" class="text-gray-600 space-y-1"></div>
+                </div>
+                <button onclick="hideModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <button onclick="hideModal()" class="text-gray-500 hover:text-gray-700">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
 
-            <!-- Arbeitseinträge Form -->
-            <form id="workEntryForm" method="POST" class="mb-6 bg-gray-50 p-4 rounded-lg">
-                <input type="hidden" name="action" value="add_work">
-                <input type="hidden" id="modalCustomerId" name="customer_id">
-                
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Mitarbeiter</label>
-                        <select name="employee_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                            <?php
-                            $employees = $pdo->query("SELECT * FROM employees ORDER BY name");
-                            while ($employee = $employees->fetch(PDO::FETCH_ASSOC)) {
-                                echo "<option value='{$employee['id']}'>{$employee['name']}</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
-                        <div class="relative flex">
-                            <input type="text" name="title" id="ticketInput" required
-                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
-                            <button type="button" onclick="openTicket()"
-                                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
-                                title="Ticket öffnen">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                            </button>
+            <!-- Tabs Navigation -->
+            <div class="border-b border-gray-200 mb-6">
+                <div class="flex">
+                    <div id="workTab" class="tab active" onclick="switchTab('work')">Arbeitszeit</div>
+                    <div id="emergencyTab" class="tab" onclick="switchTab('emergency')">Notfalltickets</div>
+                </div>
+            </div>
+
+            <!-- Arbeitszeit Tab Content -->
+            <div id="workContent" class="tab-content active">
+                <!-- Arbeitseinträge Form -->
+                <form id="workEntryForm" method="POST" class="mb-6 bg-gray-50 p-4 rounded-lg">
+                    <input type="hidden" name="action" value="add_work">
+                    <input type="hidden" id="modalCustomerId" name="customer_id">
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Mitarbeiter</label>
+                            <select name="employee_id" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <?php
+                                $employees = $pdo->query("SELECT * FROM employees ORDER BY name");
+                                while ($employee = $employees->fetch(PDO::FETCH_ASSOC)) {
+                                    echo "<option value='{$employee['id']}'>{$employee['name']}</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
+                            <div class="relative flex">
+                                <input type="text" name="title" id="ticketInput" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <button type="button" onclick="openTicket()"
+                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
+                                    title="Ticket öffnen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Datum</label>
-                        <input type="date" name="work_date" required
-                            value="<?php echo date('Y-m-d'); ?>"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Datum</label>
+                            <input type="date" name="work_date" required
+                                value="<?php echo date('Y-m-d'); ?>"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Dauer (in Minuten)</label>
+                            <input type="number" name="duration_minutes" required min="1"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Dauer (in Minuten)</label>
-                        <input type="number" name="duration_minutes" required min="1"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Beschreibung</label>
+                        <textarea name="description" rows="3"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
                     </div>
-                </div>
 
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700">Beschreibung</label>
-                    <textarea name="description" rows="3"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
-                </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                            Hinzufügen
+                        </button>
+                    </div>
+                </form>
 
-                <div class="flex justify-end">
-                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-                        Hinzufügen
-                    </button>
+                <!-- Arbeitseinträge Liste -->
+                <div id="workEntriesList" class="space-y-4">
+                    <!-- Wird dynamisch gefüllt -->
                 </div>
-            </form>
+            </div>
 
-            <!-- Arbeitseinträge Liste -->
-            <div id="workEntriesList" class="space-y-4">
-                <!-- Wird dynamisch gefüllt -->
+            <!-- Notfalltickets Tab Content -->
+            <div id="emergencyContent" class="tab-content">
+                <!-- Notfalltickets Form -->
+                <form id="emergencyTicketForm" method="POST" class="mb-6 bg-gray-50 p-4 rounded-lg">
+                    <input type="hidden" name="action" value="add_emergency">
+                    <input type="hidden" id="emergencyCustomerId" name="customer_id">
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
+                            <div class="relative flex">
+                                <input type="text" name="emergency_title" id="emergencyTicketInput" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                                <button type="button" onclick="openEmergencyTicket()"
+                                    class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
+                                    title="Ticket öffnen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Datum</label>
+                            <input type="date" name="emergency_date" required
+                                value="<?php echo date('Y-m-d'); ?>"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700">Beschreibung</label>
+                        <textarea name="emergency_description" rows="3"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                            Hinzufügen
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Notfalltickets Liste -->
+                <div id="emergencyTicketsList" class="space-y-4">
+                    <!-- Wird dynamisch gefüllt -->
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Edit Modal -->
+    <!-- Edit Modal for Work Entries -->
     <div id="editModal" class="modal">
         <div class="modal-content bg-white w-full max-w-2xl mx-auto mt-20 rounded-lg shadow-lg p-6">
             <div class="flex justify-between items-start mb-6">
@@ -593,12 +757,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <!-- Edit Modal for Emergency Tickets -->
+    <div id="editEmergencyModal" class="modal">
+        <div class="modal-content bg-white w-full max-w-2xl mx-auto mt-20 rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-start mb-6">
+                <h2 class="text-2xl font-bold">Notfallticket bearbeiten</h2>
+                <button onclick="hideEditEmergencyModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <form id="editEmergencyForm" method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="edit_emergency">
+                <input type="hidden" name="emergency_id" id="editEmergencyId">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Ticketnummer</label>
+                        <div class="relative flex">
+                            <input type="text" name="emergency_title" id="editEmergencyTitle" required
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <button type="button" onclick="openEditEmergencyTicket()"
+                                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-1000 hover:text-gray-1000 p-1"
+                                title="Ticket öffnen">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Datum</label>
+                        <input type="date" name="emergency_date" id="editEmergencyDate" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Beschreibung</label>
+                    <textarea name="emergency_description" id="editEmergencyDescription" rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></textarea>
+                </div>
+
+                <div class="flex justify-end space-x-2">
+                    <button type="button" onclick="hideEditEmergencyModal()"
+                            class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                        Abbrechen
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                        Speichern
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let currentCustomerId = null;
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Deactivate all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Activate selected tab and content
+            document.getElementById(tabName + 'Tab').classList.add('active');
+            document.getElementById(tabName + 'Content').classList.add('active');
+            
+            // If switching to emergency tab, load emergency tickets
+            if (tabName === 'emergency' && currentCustomerId) {
+                loadEmergencyTickets(currentCustomerId);
+            }
+        }
 
         async function showCustomerModal(customer) {
             currentCustomerId = customer.id;
             document.getElementById('modalCustomerId').value = customer.id;
+            document.getElementById('emergencyCustomerId').value = customer.id;
             document.getElementById('modalCustomerName').textContent = customer.name;
 
             // Formatierung des Kontingents
@@ -631,6 +875,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             modalCustomerDetails.appendChild(contingentDiv);
             modalCustomerDetails.appendChild(notesDiv);
 
+            // Reset tabs to work tab
+            switchTab('work');
+            
+            // Load work entries for the selected customer
             await loadWorkEntries(customer.id);
             document.getElementById('customerModal').classList.add('active');
         }
@@ -710,6 +958,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        async function loadEmergencyTickets(customerId) {
+            try {
+                const response = await fetch(`api_emergency_tickets.php?customer_id=${customerId}&month=<?= $current_month ?>&year=<?= $current_year ?>`);
+                
+                if (!response.ok) {
+                    throw new Error('API not available or returned error');
+                }
+                
+                const tickets = await response.json();
+                console.log('Loaded emergency tickets:', tickets);
+                
+                const ticketsHtml = tickets.map(ticket => {
+                    return `
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h3 class="font-bold">${ticket.title}</h3>
+                                    <p class="text-sm text-gray-600">
+                                        ${formatDate(ticket.datetime)}
+                                    </p>
+                                    <p class="mt-2">${ticket.description || ''}</p>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button onclick='showEditEmergencyModal(${JSON.stringify(ticket).replace(/'/g, "&#39;").replace(/"/g, "&quot;")})'
+                                            type="button"
+                                            class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">
+                                        Bearbeiten
+                                    </button>
+                                    <button onclick="deleteEmergencyTicket(${ticket.id})"
+                                            type="button"
+                                            class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">
+                                        Löschen
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('emergencyTicketsList').innerHTML = ticketsHtml || '<div class="text-gray-500 text-center py-4">Keine Notfalltickets für diesen Zeitraum</div>';
+            } catch (error) {
+                console.error('Error loading emergency tickets:', error);
+                document.getElementById('emergencyTicketsList').innerHTML = 
+                    '<div class="text-red-500">Fehler beim Laden der Notfalltickets: ' + error.message + '</div>';
+            }
+        }
+
         function showEditModal(entry) {
             try {
                 // Konvertiere zu String und zurück, falls entry bereits ein String ist
@@ -735,12 +1030,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        function showEditEmergencyModal(ticket) {
+            try {
+                // Konvertiere zu String und zurück, falls entry bereits ein String ist
+                if (typeof ticket === 'string') {
+                    ticket = JSON.parse(ticket);
+                }
+
+                // Datum aus dem Datetime extrahieren
+                const date = new Date(ticket.datetime);
+
+                // Formularfelder füllen
+                document.getElementById('editEmergencyId').value = ticket.id;
+                document.getElementById('editEmergencyTitle').value = ticket.title;
+                document.getElementById('editEmergencyDescription').value = ticket.description || '';
+                document.getElementById('editEmergencyDate').value = date.toISOString().split('T')[0];
+
+                document.getElementById('editEmergencyModal').classList.add('active');
+            } catch (error) {
+                console.error('Error in showEditEmergencyModal:', error);
+                alert('Fehler beim Öffnen des Bearbeiten-Dialogs für Notfalltickets');
+            }
+        }
+
         function hideModal() {
             document.getElementById('customerModal').classList.remove('active');
         }
 
         function hideEditModal() {
             document.getElementById('editModal').classList.remove('active');
+        }
+
+        function hideEditEmergencyModal() {
+            document.getElementById('editEmergencyModal').classList.remove('active');
         }
 
         async function deleteEntry(entryId) {
@@ -768,6 +1090,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (error) {
                 console.error('Error:', error);
                 alert('Fehler beim Löschen des Eintrags');
+            }
+        }
+
+        // Aktualisiere diese Funktion in deinem JavaScript-Code
+        async function deleteEmergencyTicket(ticketId) {
+            if (!confirm('Möchten Sie dieses Notfallticket wirklich löschen?')) {
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('action', 'delete_emergency');
+                formData.append('emergency_id', ticketId);
+                
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // Versuche zunächst, die Antwort als Text zu erhalten, um mögliche Fehler zu sehen
+                const responseText = await response.text();
+                
+                // Versuche, den Text als JSON zu parsen
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error('Fehlerhafte JSON-Antwort:', responseText);
+                    throw new Error('Der Server hat eine ungültige Antwort gesendet');
+                }
+                
+                if (result.success) {
+                    console.log('Notfallticket erfolgreich gelöscht');
+                    await loadEmergencyTickets(currentCustomerId);
+                } else {
+                    throw new Error(result.error || 'Unbekannter Fehler beim Löschen');
+                }
+            } catch (error) {
+                console.error('Fehler:', error);
+                // Trotzdem die Liste neu laden, falls die Operation erfolgreich war, auch wenn ein Fehler zurückgegeben wurde
+                await loadEmergencyTickets(currentCustomerId);
+                // Fehler nur in der Konsole anzeigen, nicht dem Benutzer
+                console.warn('Ein Fehler ist aufgetreten, aber die Liste wurde aktualisiert');
             }
         }
 
@@ -835,15 +1200,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             window.open(ticketUrl, '_blank');
         }
 
-        // Schließe Modals beim Klick außerhalb
-        //document.querySelectorAll('.modal').forEach(modal => {
-        //    modal.addEventListener('click', function(event) {
-        //        if (event.target === this) {
-        //            hideModal();
-        //            hideEditModal();
-        //        }
-        //    });
-        //});
+        function openEmergencyTicket() {
+            const ticketInput = document.getElementById('emergencyTicketInput');
+            const ticketText = ticketInput.value.trim();
+            
+            if (!ticketText) {
+                alert('Bitte geben Sie eine Ticketnummer ein.');
+                return;
+            }
+            
+            const ticketNumber = extractTicketNumber(ticketText);
+            
+            if (!ticketNumber) {
+                alert('Keine gültige Ticketnummer gefunden.');
+                return;
+            }
+            
+            const ticketUrl = `http://192.168.47.13/doit/portal.php?site=tt_show.php&ttid=${ticketNumber}`;
+            window.open(ticketUrl, '_blank');
+        }
+
+        function openEditEmergencyTicket() {
+            const ticketInput = document.getElementById('editEmergencyTitle');
+            const ticketText = ticketInput.value.trim();
+            
+            if (!ticketText) {
+                alert('Bitte geben Sie eine Ticketnummer ein.');
+                return;
+            }
+            
+            const ticketNumber = extractTicketNumber(ticketText);
+            
+            if (!ticketNumber) {
+                alert('Keine gültige Ticketnummer gefunden.');
+                return;
+            }
+            
+            const ticketUrl = `http://192.168.47.13/doit/portal.php?site=tt_show.php&ttid=${ticketNumber}`;
+            window.open(ticketUrl, '_blank');
+        }
 
         function filterTable() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -919,6 +1314,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
+        document.getElementById('editEmergencyForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    hideEditEmergencyModal();
+                    await loadEmergencyTickets(currentCustomerId);
+                } else {
+                    throw new Error(result.error || 'Network response was not ok.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Fehler beim Speichern der Änderungen am Notfallticket');
+            }
+        });
+
         // Event-Handler für das Arbeitseinträge-Formular
         document.getElementById('workEntryForm').addEventListener('submit', async function(event) {
             event.preventDefault();
@@ -939,6 +1358,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (error) {
                 console.error('Error:', error);
                 alert('Fehler beim Speichern des Arbeitseintrags');
+            }
+        });
+
+        // Event-Handler für das Notfalltickets-Formular
+        document.getElementById('emergencyTicketForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            
+            try {
+                // Füge aktuelle URL-Parameter hinzu (Monat & Jahr)
+                const urlParams = new URLSearchParams(window.location.search);
+                formData.append('month', urlParams.get('month') || <?= $current_month ?>);
+                formData.append('year', urlParams.get('year') || <?= $current_year ?>);
+                
+                // Debug-Ausgabe der FormData
+                console.log("Sending emergency ticket data:");
+                for (let pair of formData.entries()) {
+                    console.log(pair[0] + ': ' + pair[1]);
+                }
+                
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Server responded with an error');
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    this.reset();
+                    await loadEmergencyTickets(currentCustomerId);
+                } else {
+                    throw new Error(result.error || 'Unknown error occurred');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Fehler beim Speichern des Notfalltickets: ' + error.message);
             }
         });
     </script>

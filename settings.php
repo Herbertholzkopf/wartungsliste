@@ -22,14 +22,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($_POST['action']) {
             case 'add_customer':
                 $stmt = $pdo->prepare("
-                    INSERT INTO customers (name, customer_number, contingent_hours, contingent_minutes, calculation_time_span, notes) 
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO customers (name, customer_number, contingent_hours, contingent_minutes, contingent_emergency_tickets, calculation_time_span, notes) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $_POST['name'],
                     $_POST['customer_number'],
                     $_POST['contingent_hours'],
                     $_POST['contingent_minutes'],
+                    $_POST['contingent_emergency_tickets'],
                     $_POST['calculation_time_span'],
                     $_POST['notes']
                 ]);
@@ -42,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         customer_number = ?, 
                         contingent_hours = ?,
                         contingent_minutes = ?,
+                        contingent_emergency_tickets = ?,
                         calculation_time_span = ?,
                         notes = ?
                     WHERE id = ?
@@ -51,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_POST['customer_number'],
                     $_POST['contingent_hours'],
                     $_POST['contingent_minutes'],
+                    $_POST['contingent_emergency_tickets'],
                     $_POST['calculation_time_span'],
                     $_POST['notes'],
                     $_POST['customer_id']
@@ -149,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kundennummer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notfalltickets</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Abrechnungszeitraum</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notizen</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aktionen</th>
@@ -164,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <td class="px-6 py-4"><?= htmlspecialchars($customer['name']) ?></td>
                             <td class="px-6 py-4"><?= htmlspecialchars($customer['customer_number']) ?></td>
                             <td class="px-6 py-4"><?= $customer['contingent_hours'] ?>h <?= $customer['contingent_minutes'] ?>min</td>
+                            <td class="px-6 py-4"><?= $customer['contingent_emergency_tickets'] ?></td>
                             <td class="px-6 py-4"><?= $timeSpanText ?></td>
                             <td class="px-6 py-4" title="<?= htmlspecialchars($customer['notes']) ?>">
                                 <?= nl2br(htmlspecialchars(strlen($customer['notes']) > 50 ? substr($customer['notes'], 0, 50) . '...' : $customer['notes'])) ?>
@@ -266,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Kontingent Stunden</label>
                         <input type="number" name="contingent_hours" id="customerFormHours" required min="0"
@@ -275,6 +280,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Kontingent Minuten</label>
                         <input type="number" name="contingent_minutes" id="customerFormMinutes" required min="0" max="59"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Notfalltickets</label>
+                        <input type="number" name="contingent_emergency_tickets" id="customerFormEmergencyTickets" required min="0"
                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                     </div>
                     <div>
@@ -380,6 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('customerFormNumber').value = customer.customer_number;
             document.getElementById('customerFormHours').value = customer.contingent_hours;
             document.getElementById('customerFormMinutes').value = customer.contingent_minutes;
+            document.getElementById('customerFormEmergencyTickets').value = customer.contingent_emergency_tickets;
             document.getElementById('customerFormTimeSpan').value = customer.calculation_time_span;
             document.getElementById('customerFormNotes').value = customer.notes || '';
             document.getElementById('customerModal').classList.add('active');
