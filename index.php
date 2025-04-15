@@ -47,7 +47,7 @@ if ($statsResult && $statsRow = $statsResult->fetch(PDO::FETCH_ASSOC)) {
 $current_month = isset($_GET['month']) ? $_GET['month'] : date('m');
 $current_year = isset($_GET['year']) ? $_GET['year'] : date('Y');
 
-// Funktion zum Berechnen des verbrauchten Kontingents
+// Funktion zum Berechnen des verbrauchten Kontingents (Arbeitszeit)
 function calculateUsedContingent($pdo, $customer_id, $month, $year) {
     // Hole zuerst den calculation_time_span des Kunden
     $stmt = $pdo->prepare("SELECT calculation_time_span FROM customers WHERE id = ?");
@@ -81,6 +81,42 @@ function calculateUsedContingent($pdo, $customer_id, $month, $year) {
     }
     
     return $stmt->fetch(PDO::FETCH_ASSOC)['total_minutes'];
+}
+
+// Funktion zum Berechnen des verbrauchten Kontingents (Notfalltickets)
+function calculateUsedEmergencyTickets($pdo, $customer_id, $month, $year) {
+    // Hole zuerst den calculation_time_span des Kunden
+    $stmt = $pdo->prepare("SELECT calculation_time_span FROM customers WHERE id = ?");
+    $stmt->execute([$customer_id]);
+    $customer = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($customer['calculation_time_span'] === 'monthly') {
+        // Für monatliche Kunden: Berechne nur den ausgewählten Monat
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total_tickets
+            FROM emergency_tickets 
+            WHERE customer_id = ? 
+            AND MONTH(datetime) = ? 
+            AND YEAR(datetime) = ?
+        ");
+        $stmt->execute([$customer_id, $month, $year]);
+    } else {
+        // Für Quartalskunden: Berechne das gesamte Quartal
+        $quarter = ceil($month / 3);
+        $startMonth = ($quarter - 1) * 3 + 1;
+        $endMonth = $quarter * 3;
+        
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as total_tickets
+            FROM emergency_tickets 
+            WHERE customer_id = ? 
+            AND MONTH(datetime) BETWEEN ? AND ?
+            AND YEAR(datetime) = ?
+        ");
+        $stmt->execute([$customer_id, $startMonth, $endMonth, $year]);
+    }
+    
+    return $stmt->fetch(PDO::FETCH_ASSOC)['total_tickets'];
 }
 
 // Validierungsfunktion für Datumsformat
@@ -436,6 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Kontingent</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Verbleibend</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fortschritt</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notfalltickets</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
@@ -527,6 +564,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     style="width: <?= min(100, max(0, $usage_percentage)) ?>%">
                                 </div>
                             </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <?php 
+                            $used_tickets = calculateUsedEmergencyTickets($pdo, $customer['id'], $current_month, $current_year);
+                            $total_tickets = $customer['contingent_emergency_tickets'];
+                            
+                            // Spezialfall: Wenn Kontingent 0 ist, aber Tickets vorhanden sind
+                            if ($total_tickets == 0 && $used_tickets > 0) {
+                                $ticket_color_class = 'text-red-600';  // Überschreitung
+                            } else {
+                                // Normale Prozentberechnung für Fälle mit Kontingent > 0
+                                $ticket_usage_percentage = $total_tickets > 0 ? ($used_tickets / $total_tickets) * 100 : 0;
+                                
+                                // Farbbestimmung basierend auf Verbrauch
+                                if ($ticket_usage_percentage > 100) {
+                                    $ticket_color_class = 'text-red-600';     // über 100%
+                                } elseif ($ticket_usage_percentage > 75) {
+                                    $ticket_color_class = 'text-yellow-600';  // 76-100%
+                                } else {
+                                    $ticket_color_class = 'text-green-600';   // 0-75%
+                                }
+                            }
+                            
+                            echo "<span class='{$ticket_color_class}'>{$used_tickets} von {$total_tickets}</span>";
+                            
+                            // Füge Zeitraum-Info hinzu wenn Quartal
+                            if ($customer['calculation_time_span'] === 'quarterly') {
+                                $quarter = ceil($current_month / 3);
+                                echo " <span class='text-gray-400'>(Q{$quarter})</span>";
+                            }
+                            ?>
                         </td>
                     </tr>
                     <?php
