@@ -483,11 +483,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $used_minutes = calculateUsedContingent($pdo, $customer['id'], $current_month, $current_year);
                         $remaining_minutes = $total_contingent - $used_minutes;
                         
-                        // Berechne den Verbrauch in Prozent
-                        $usage_percentage = ($used_minutes / $total_contingent) * 100;
+                        // Berechne den Verbrauch in Prozent - mit Schutz vor Division durch Null
+                        if ($total_contingent > 0) {
+                            $usage_percentage = ($used_minutes / $total_contingent) * 100;
+                        } else {
+                            // Wenn kein Kontingent vorhanden ist:
+                            $usage_percentage = $used_minutes > 0 ? 100 : 0; // 100% wenn Zeit verbraucht wurde, sonst 0%
+                        }
 
-                        // Berechne den verbleibenden Prozentsatz
-                        $remaining_percentage = 100 - (($used_minutes / $total_contingent) * 100);
+                        // Berechne den verbleibenden Prozentsatz - auch mit Division durch Null Schutz
+                        if ($total_contingent > 0) {
+                            $remaining_percentage = 100 - (($used_minutes / $total_contingent) * 100);
+                        } else {
+                            $remaining_percentage = $used_minutes > 0 ? 0 : 100; // 0% wenn Zeit verbraucht wurde, sonst 100%
+                        }
                         
                         // Farbbestimmung für Fortschrittsbalken basierend auf Verbrauch
                         if ($usage_percentage > 100) {
@@ -524,6 +533,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             if ($total_hours > 0) {
                                 $output[] = "{$total_hours}h";
+                            } else if ($total_hours == 0 && $total_mins == 0) {
+                                // Wenn sowohl Stunden als auch Minuten 0 sind, zeige trotzdem "0h"
+                                $output[] = "0h";
                             }
                             if ($total_mins > 0) {
                                 $output[] = "{$total_mins}min";
@@ -534,28 +546,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </td>
                         <td class="px-6 py-4">
                             <?php 
-                            $output = [];
-                            
-                            if ($remaining_minutes >= 0) {
-                                // Positive verbleibende Zeit
-                                if ($remaining_hours > 0) {
-                                    $output[] = "{$remaining_hours}h";
-                                }
-                                if ($remaining_mins > 0) {
-                                    $output[] = "{$remaining_mins}min";
-                                }
+                            if ($total_contingent == 0) {
+                                echo "kein Kontingent";
                             } else {
-                                // Negative verbleibende Zeit (Überziehung)
-                                if ($remaining_hours > 0) {
-                                    $output[] = "-{$remaining_hours}h";
+                                $output = [];
+                                
+                                if ($remaining_minutes >= 0) {
+                                    // Positive verbleibende Zeit
+                                    if ($remaining_hours > 0) {
+                                        $output[] = "{$remaining_hours}h";
+                                    }
+                                    if ($remaining_mins > 0) {
+                                        $output[] = "{$remaining_mins}min";
+                                    }
+                                    // Wenn beide 0 sind, zeige "0h"
+                                    if (empty($output)) {
+                                        $output[] = "0h";
+                                    }
+                                } else {
+                                    // Negative verbleibende Zeit (Überziehung)
+                                    if ($remaining_hours > 0) {
+                                        $output[] = "-{$remaining_hours}h";
+                                    }
+                                    if ($remaining_mins > 0) {
+                                        $output[] = "-{$remaining_mins}min";
+                                    }
                                 }
-                                if ($remaining_mins > 0) {
-                                    $output[] = "-{$remaining_mins}min";
-                                }
+                                
+                                echo implode(' ', $output);
+                                echo " (" . number_format($remaining_percentage, 1) . "%)";
                             }
-                            
-                            echo implode(' ', $output);
-                            echo " (" . number_format($remaining_percentage, 1) . "%)";
                             ?>
                         </td>
                         <td class="px-6 py-4">
@@ -1473,7 +1493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-4 z-10">
         <div class="container mx-auto text-center">
-            Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 26h Arbeitszeit (Stand 15.04.2025)</a>
+            Made with ❤️ by <a href="https://github.com/Herbertholzkopf/" class="footer-link">Andreas Koller - 27h Arbeitszeit (Stand 13.07.2025)</a>
         </div>
     </footer>
 

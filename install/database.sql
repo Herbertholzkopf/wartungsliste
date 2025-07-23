@@ -8,7 +8,7 @@ CREATE TABLE customers (
     name VARCHAR(255) NOT NULL,
     contingent_hours INT NOT NULL,
     contingent_minutes INT NOT NULL,
-    contingent_emergency_tickets INT NOT NULL,
+    contingent_emergency_tickets INT NOT NULL DEFAULT 0,
     calculation_time_span VARCHAR(10) NOT NULL DEFAULT 'monthly' CHECK (calculation_time_span IN ('monthly', 'quarterly')),
     notes TEXT
 );
@@ -27,6 +27,7 @@ CREATE TABLE work_entries (
     description TEXT,
     datetime DATETIME NOT NULL,
     duration_minutes INT,
+    number_of_used_emergency_tickets INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (customer_id) REFERENCES customers(id),
     FOREIGN KEY (employee_id) REFERENCES employees(id)

@@ -141,8 +141,13 @@ def update_customer_status(cursor, connection, customer, customer_id, total_used
         else:
             status = 'ok'
     else:
-        # Falls kein Kontingent definiert ist
-        status = 'danger'
+        # Falls kein Kontingent definiert ist (0h)
+        if total_used_minutes > 0:
+            # Wenn Zeit verbraucht wurde trotz 0h Kontingent
+            status = 'danger'
+        else:
+            # Wenn keine Zeit verbraucht wurde, ist alles in Ordnung
+            status = 'ok'
     
     # Prüfen, ob bereits ein Eintrag für diesen Kunden existiert
     cursor.execute("""
